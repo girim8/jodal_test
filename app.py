@@ -1110,7 +1110,7 @@ def render_basic_analysis_charts(base_df: pd.DataFrame):
             custom2 = _np.stack([titles_total], axis=-1)
         else:
             import numpy as _np
-            custom2 = _np.stack([pd.Series(["")], axis=-1))
+            custom2 = _np.stack([pd.Series([""] * len(grp_total))], axis=-1)
         fig_bar = px.bar(grp_total, x="연도분기", y="금액합", title="연·분기별 배정예산금액 (총합)", text="금액합")
         fig_bar.update_traces(
             customdata=custom2,
