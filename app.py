@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-# app.py — Streamlit Cloud 단일 파일 통합본 (Final Strict Sorting Version)
-# - Features: Upstage OCR, 3-Level Analysis, Full CSS/Dicts
-# - Fixes: DataFrame Column Re-ordering (Strict Construction), Chart Sorting
+# app.py — Streamlit Cloud 단일 파일 통합본 (Fixed Hover & Data Version)
+# - Updates: Fixed Chart Tooltip Indexing, NaN Handling, Strict Column Ordering
 
 import os
 import re
@@ -1358,20 +1357,26 @@ def render_basic_analysis_charts(base_df: pd.DataFrame):
                         # ✅ [수정] 대표업체, 수요기관명, 투찰율, 서비스구분 정보 추가 수집
                         grp_proj = g.groupby(["연도분기", title_col]).agg({
                             "배정예산금액": "sum",
-                            "대표업체": lambda x: x.iloc[0] if len(x) > 0 else "",
-                            "수요기관명": lambda x: x.iloc[0] if len(x) > 0 else "",
-                            "투찰율": lambda x: x.mean() if len(x) > 0 else 0,
-                            "서비스구분": lambda x: x.iloc[0] if len(x) > 0 else ""
+                            "대표업체": lambda x: x.iloc[0] if not x.empty else "",
+                            "수요기관명": lambda x: x.iloc[0] if not x.empty else "",
+                            "투찰율": lambda x: x.mean() if not x.empty else 0,
+                            "서비스구분": lambda x: x.iloc[0] if not x.empty else ""
                         }).reset_index()
                         
                         grp_proj.rename(columns={"배정예산금액": "금액"}, inplace=True)
+                        # ✅ [수정] NaN 처리
+                        grp_proj["투찰율"] = grp_proj["투찰율"].fillna(0)
                         
                         # 연/분 추출
                         grp_proj["연"] = grp_proj["연도분기"].str.extract(r"(\d{4})").astype(int)
                         grp_proj["분"] = grp_proj["연도분기"].str.extract(r"Q(\d)").astype(int)
                         
-                        # ✅ [수정] 정렬: 연/분 오름차순, 금액 오름차순 (작은 금액이 아래, 큰 금액이 위)
+                        # ✅ [수정] 정렬: 연/분 오름차순, 금액 오름차순
                         grp_proj = grp_proj.sort_values(["연", "분", "금액"], ascending=[True, True, True]).reset_index(drop=True)
+                        
+                        # ✅ [수정] Hover Data 순서 명시적 지정 (Customdata 인덱스 고정)
+                        # 순서: [0: title, 1: 대표업체, 2: 수요기관, 3: 투찰율, 4: 서비스]
+                        hover_cols = [title_col, "대표업체", "수요기관명", "투찰율", "서비스구분"]
                         
                         fig_proj_stack = px.bar(
                             grp_proj, 
@@ -1379,20 +1384,21 @@ def render_basic_analysis_charts(base_df: pd.DataFrame):
                             y="금액", 
                             color=title_col,
                             title="연·분기별 배정예산금액 (사업별 누적)",
-                            # ✅ [수정] Hover Data 추가
-                            hover_data={
-                                title_col: False, # legendgroup에 나오므로 중복 제외
-                                "연도분기": True,
-                                "금액": ":,.0f",
-                                "대표업체": True,
-                                "수요기관명": True,
-                                "투찰율": ":.2f",
-                                "서비스구분": True
-                            }
+                            hover_data=hover_cols
                         )
                         
+                        # ✅ [수정] Hover Template에서 명시적 인덱스 사용
                         fig_proj_stack.update_traces(
-                            hovertemplate="<b>%{x}</b><br>사업명: %{legendgroup}<br>금액: %{y:,.0f} 원<br>대표업체: %{customdata[2]}<br>수요기관: %{customdata[3]}<br>투찰율: %{customdata[4]:.2f}%<br>서비스: %{customdata[5]}"
+                            hovertemplate=(
+                                "<b>%{x}</b><br>"
+                                "사업명: %{customdata[0]}<br>"
+                                "금액: %{y:,.0f} 원<br>"
+                                "대표업체: %{customdata[1]}<br>"
+                                "수요기관: %{customdata[2]}<br>"
+                                "투찰율: %{customdata[3]:.2f}%<br>"
+                                "서비스: %{customdata[4]}"
+                                "<extra></extra>"
+                            )
                         )
                         fig_proj_stack.update_layout(
                             xaxis_title="연도분기", 
@@ -1529,7 +1535,6 @@ if menu_val == "조달입찰결과현황":
     # 3. 새로운 DataFrame 변수에 할당 (Deep Copy)
     df_display = df_filtered[exist_cols + other_cols].copy()
 
-    # [수정] 엑셀 다운로드도 정렬된 df_display 사용
     dl_buf = BytesIO()
     df_display.to_excel(dl_buf, index=False, engine="openpyxl")
     dl_buf.seek(0)
@@ -1541,7 +1546,6 @@ if menu_val == "조달입찰결과현황":
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     
-    # ✅ [수정] Key 변경하여 강제 리프레시 + 정렬된 df_display 주입
     st.data_editor(
         df_display, 
         use_container_width=True, 
