@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# app.py — Streamlit Cloud 단일 파일 통합본 (Final Fixed Version)
+# app.py — Streamlit Cloud 단일 파일 통합본 (Final Version for Deployment)
 # - Features: Upstage OCR, 3-Level Analysis, Full CSS/Dicts
-# - Fixes: Column Ordering in DataEditor, Chart Sorting & Hover Info
+# - Fixes: Column Ordering Persistence, Chart Sorting & Hover Info
 
 import os
 import re
@@ -1499,7 +1499,8 @@ menu_val = st.session_state.get("menu")
 if menu_val == "조달입찰결과현황":
     st.title("📑 조달입찰결과현황")
     
-    # ✅ [수정] 정렬 로직을 최상단으로 이동하여 다운로드와 화면 표시 모두 적용되도록 수정
+    # ✅ [수정] 정렬 로직 및 강제 컬럼 순서 재배치
+    # 사용자가 요청한 컬럼 순서
     desired_order = [
         "입찰공고명", "공고명",  
         "수요기관명", "수요기관", 
@@ -1517,6 +1518,7 @@ if menu_val == "조달입찰결과현황":
         "수요기관지역"
     ]
     
+    # 1. 실제 존재하는 컬럼만 추출 (중복 제거)
     available_cols = []
     seen = set()
     for c in desired_order:
@@ -1524,9 +1526,13 @@ if menu_val == "조달입찰결과현황":
             available_cols.append(c)
             seen.add(c)
             
+    # 2. 리스트에 없는 나머지 컬럼들
     remain_cols = [c for c in df_filtered.columns if c not in seen]
+    
+    # 3. 최종 정렬된 데이터프레임
     df_sorted = df_filtered[available_cols + remain_cols]
 
+    # [수정] 다운로드 파일도 정렬된 데이터프레임 사용
     dl_buf = BytesIO()
     df_sorted.to_excel(dl_buf, index=False, engine="openpyxl")
     dl_buf.seek(0)
@@ -1538,11 +1544,11 @@ if menu_val == "조달입찰결과현황":
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     
-    # ✅ [수정] Key 변경으로 강제 리렌더링
+    # ✅ [중요 수정] Key를 완전히 변경하여 에디터 설정 초기화 & 정렬된 DF 강제 주입
     st.data_editor(
         df_sorted, 
         use_container_width=True, 
-        key="result_editor_sorted_v1", 
+        key="result_view_final_fixed",  # Key 변경됨
         height=520
     )
     
