@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-# app.py — Streamlit Cloud 단일 파일 통합본 (Modified Version)
-# - Updates: Admin Debug Removed, Key Expander Closed, Date Filter Layout, Chart Stacked by Project
+# app.py — Streamlit Cloud 단일 파일 통합본 (Final Modified Version)
+# - Features: Upstage OCR, 3-Level Analysis, Full CSS/Dicts
+# - Updates: Chart Sorting/Hover Info, Dataframe Column Ordering
 
 import os
 import re
@@ -24,7 +25,7 @@ import plotly.express as px
 import markdown as md_lib
 from xhtml2pdf import pisa
 
-# ✅ DOCX 생성을 위한 라이브러리 (pip install python-docx 필요)
+# ✅ DOCX 생성을 위한 라이브러리
 try:
     from docx import Document
     from docx.shared import Pt
@@ -974,7 +975,6 @@ def render_sidebar_base():
     st.sidebar.radio("# 📋 메뉴 선택", ["조달입찰결과현황", "내고객 분석하기"], key="menu")
 
     st.sidebar.markdown("---")
-    # [수정] 초기 상태 expanded=False
     with st.sidebar.expander("🔑 Gemini API Key 설정", expanded=False):
         st.markdown("""
         <small>입력값이 있으면 st.secrets보다 <b>우선 사용</b>됩니다.</small>
@@ -992,8 +992,6 @@ def render_sidebar_base():
             st.sidebar.success(f"✅ Gemini 사용 가능 ({len(current_keys)}개 키 로드됨)")
         else:
             st.sidebar.warning("⚠️ Gemini 키가 없습니다.")
-            
-    # [수정] admin 디버깅 도구 제거됨 (요청사항 반영)
 
 
 def render_sidebar_filters(df: pd.DataFrame):
@@ -1022,7 +1020,6 @@ def render_sidebar_filters(df: pd.DataFrame):
         org_list = sorted(df[demand_col_sidebar].dropna().unique())
         st.sidebar.multiselect(f"{demand_col_sidebar} 필터 (복수 가능)", org_list, key="selected_orgs")
 
-    # [수정] 공고게시일자 필터 레이아웃 변경 (컬럼 분할, 문구 수정)
     st.sidebar.subheader("📆 공고게시일자 필터 (복수가능)")
     if "공고게시일자_date" in df.columns:
         df["_tmp_date"] = pd.to_datetime(df["공고게시일자_date"], errors="coerce")
@@ -1355,17 +1352,28 @@ def render_basic_analysis_charts(base_df: pd.DataFrame):
                     else:
                         st.info("그룹핑 결과가 비어 있습니다.")
 
-                # [Right Chart] Project Stack (Requested Feature)
+                # [Right Chart] Project Stack
                 with col_total:
                     if title_col:
-                        # 사업별로 Grouping (분기 내 프로젝트별 스택)
-                        # 너무 많은 색상이 나오지 않게 상위 N개만 할 수도 있지만, 
-                        # 요구사항은 "사업별로 색깔이 다르게" 이므로 전체 표현 시도.
-                        grp_proj = g.groupby(["연도분기", title_col])["배정예산금액"].sum().reset_index(name="금액")
+                        # ✅ [수정] 대표업체, 수요기관명, 투찰율, 서비스구분 정보 추가 수집
+                        # 문자열 컬럼은 첫 번째 값, 숫자는 평균 또는 합으로 집계
+                        grp_proj = g.groupby(["연도분기", title_col]).agg({
+                            "배정예산금액": "sum",
+                            "대표업체": lambda x: x.iloc[0] if len(x) > 0 else "",
+                            "수요기관명": lambda x: x.iloc[0] if len(x) > 0 else "",
+                            "투찰율": lambda x: x.mean() if len(x) > 0 else 0,
+                            "서비스구분": lambda x: x.iloc[0] if len(x) > 0 else ""
+                        }).reset_index()
                         
-                        # 정렬
+                        grp_proj.rename(columns={"배정예산금액": "금액"}, inplace=True)
+                        
+                        # 연/분 추출
                         grp_proj["연"] = grp_proj["연도분기"].str.extract(r"(\d{4})").astype(int)
                         grp_proj["분"] = grp_proj["연도분기"].str.extract(r"Q(\d)").astype(int)
+                        
+                        # ✅ [수정] 정렬: 연/분 오름차순, 금액 오름차순 (작은 금액이 아래, 큰 금액이 위 -> 스택 시 큰게 위로?) 
+                        # Plotly Stack Bar는 데이터 순서대로 아래에서부터 쌓습니다.
+                        # 요청: "ascending=[True, True, True]" -> 작은 금액이 먼저 그려져서 아래에 위치
                         grp_proj = grp_proj.sort_values(["연", "분", "금액"], ascending=[True, True, True]).reset_index(drop=True)
                         
                         fig_proj_stack = px.bar(
@@ -1374,18 +1382,25 @@ def render_basic_analysis_charts(base_df: pd.DataFrame):
                             y="금액", 
                             color=title_col,
                             title="연·분기별 배정예산금액 (사업별 누적)",
-                            # 텍스트 라벨은 겹치므로 제거, 툴팁 활용
+                            # ✅ [수정] Hover Data 추가
+                            hover_data={
+                                title_col: False, # legendgroup에 나오므로 중복 제외
+                                "연도분기": True,
+                                "금액": ":,.0f",
+                                "대표업체": True,
+                                "수요기관명": True,
+                                "투찰율": ":.2f",
+                                "서비스구분": True
+                            }
                         )
                         
-                        # 툴팁 상세화
                         fig_proj_stack.update_traces(
-                            hovertemplate="<b>%{x}</b><br>사업명: %{legendgroup}<br>금액: %{y:,.0f} 원",
+                            hovertemplate="<b>%{x}</b><br>사업명: %{legendgroup}<br>금액: %{y:,.0f} 원<br>대표업체: %{customdata[2]}<br>수요기관: %{customdata[3]}<br>투찰율: %{customdata[4]:.2f}%<br>서비스: %{customdata[5]}"
                         )
-                        # 범례가 너무 많을 수 있으므로 레이아웃 조정 (필요시 showlegend=False)
                         fig_proj_stack.update_layout(
                             xaxis_title="연도분기", 
                             yaxis_title="배정예산금액 (원)",
-                            showlegend=False  # 범례가 너무 많아 그래프를 가리므로 숨김 (툴팁으로 확인)
+                            showlegend=False
                         )
                         st.plotly_chart(fig_proj_stack, use_container_width=True)
                     else:
@@ -1492,7 +1507,19 @@ if menu_val == "조달입찰결과현황":
         file_name=f"filtered_result_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-    st.data_editor(df_filtered, use_container_width=True, key="result_editor", height=520)
+    
+    # ✅ [수정] 데이터프레임 컬럼 순서 재배치
+    desired_order = ["입찰공고명", "수요기관명", "대표업체", "서비스구분", "투찰금액", 
+                     "입찰공고번호", "year", "month", "낙찰자선정여부", "투찰율", 
+                     "개찰순위", "조달방식구분", "낙찰방법", "긴급공고여부", "수요기관지역"]
+    
+    # 실제 존재하는 컬럼만 선택하고, 나머지 컬럼은 뒤에 붙임
+    available_cols = [c for c in desired_order if c in df_filtered.columns]
+    remain_cols = [c for c in df_filtered.columns if c not in available_cols]
+    df_sorted = df_filtered[available_cols + remain_cols]
+
+    st.data_editor(df_sorted, use_container_width=True, key="result_editor", height=520)
+    
     with st.expander("📊 기본 통계 분석(차트) 열기", expanded=False):
         render_basic_analysis_charts(df_filtered)
 
