@@ -1366,7 +1366,7 @@ def render_basic_analysis_charts(base_df: pd.DataFrame):
                         # 정렬
                         grp_proj["연"] = grp_proj["연도분기"].str.extract(r"(\d{4})").astype(int)
                         grp_proj["분"] = grp_proj["연도분기"].str.extract(r"Q(\d)").astype(int)
-                        grp_proj = grp_proj.sort_values(["연", "분"]).reset_index(drop=True)
+                        grp_proj = grp_proj.sort_values(["연", "분", "금액"], ascending=[True, True, True]).reset_index(drop=True)
                         
                         fig_proj_stack = px.bar(
                             grp_proj, 
