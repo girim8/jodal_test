@@ -1000,37 +1000,46 @@ def render_sidebar_base():
 
             # [▼▼▼ 추가할 코드 시작 ▼▼▼]
             # 관리자(admin)일 경우, 실제 API를 호출하여 사용 가능한 모델 리스트를 보여줍니다.
+# [▼▼▼ 수정된 코드 시작 (디버깅 강화) ▼▼▼]
             if st.session_state.get("role") == "admin":
                 with st.sidebar.expander("👮 [Admin] 가용 모델 리스트", expanded=True):
                     try:
-                        # 첫 번째 키를 사용하여 모델 조회
                         chk_key = current_keys[0]
+                        # API 호출
                         chk_url = "https://generativelanguage.googleapis.com/v1beta/models"
                         chk_res = requests.get(chk_url, params={"key": chk_key}, timeout=5)
                         
                         if chk_res.status_code == 200:
                             data = chk_res.json()
-                            models = data.get("models", [])
-                            # 'gemini'가 포함된 모델명만 필터링하여 출력
-                            model_names = [
-                                m["name"].replace("models/", "") 
-                                for m in models 
-                                if "gemini" in m["name"].lower()
-                            ]
-                            if model_names:
+                            raw_models = data.get("models", [])
+                            
+                            # 1. 모델 개수 확인
+                            st.caption(f"총 {len(raw_models)}개 모델 수신됨")
+
+                            if not raw_models:
+                                st.error("API 응답에 'models' 리스트가 비어있습니다.")
+                                # 원본 응답 확인용 (필요시 주석 해제)
+                                # st.json(data) 
+                            else:
+                                # 2. 필터링 로직 완화 (이름만 추출)
+                                # 'models/' 접두어 제거 및 가독성 처리
+                                all_names = [m.get("name", "No Name").replace("models/", "") for m in raw_models]
+                                
+                                # 3. 리스트 출력
                                 st.markdown(
-                                    f"""<div style="font-size:11px; color:#333; line-height:1.4;">
-                                    {'<br>'.join(sorted(model_names, reverse=True))}
-                                    </div>""", 
+                                    f"""
+                                    <div style="font-size:11px; color:#333; line-height:1.4; max-height:200px; overflow-y:auto;">
+                                    {'<br>'.join(sorted(all_names))}
+                                    </div>
+                                    """, 
                                     unsafe_allow_html=True
                                 )
-                            else:
-                                st.warning("Gemini 모델 목록이 비어있습니다.")
                         else:
-                            st.error(f"조회 실패: {chk_res.status_code}")
+                            st.error(f"HTTP {chk_res.status_code}: {chk_res.text[:50]}")
+                            
                     except Exception as e:
-                        st.error(f"Error: {e}")
-            # [▲▲▲ 추가할 코드 끝 ▲▲▲]
+                        st.error(f"Error: {str(e)}")
+            # [▲▲▲ 수정된 코드 끝 ▲▲▲]
 
         else:
             st.sidebar.warning("⚠️ Gemini 키가 없습니다.")
