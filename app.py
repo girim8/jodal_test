@@ -998,7 +998,7 @@ def render_sidebar_base():
         if current_keys:
             st.sidebar.success(f"✅ Gemini 사용 가능 ({len(current_keys)}개 키 로드됨)")
 
-# [▼▼▼ Admin: 모델 리스트 엑셀 다운로드 기능 추가 ▼▼▼]
+# [▼▼▼ Admin: 중첩 오류 수정된 버전 ▼▼▼]
             if st.session_state.get("role") == "admin":
                 with st.sidebar.expander("👮 [Admin] 모델 리스트 관리", expanded=True):
                     try:
@@ -1029,8 +1029,7 @@ def render_sidebar_base():
                                 )
                                 
                                 # 4. 화면에는 '이름'과 '설명'만 깔끔하게 표로 보여주기
-                                st.caption("👇 모델 리스트 (name 컬럼을 복사해서 쓰세요)")
-                                # 필요한 컬럼만 추려서 표시 (없으면 전체 표시)
+                                st.caption("👇 모델 리스트 (name 컬럼 복사 사용)")
                                 cols_to_show = [c for c in ["name", "displayName", "inputTokenLimit"] if c in df_models.columns]
                                 st.dataframe(
                                     df_models[cols_to_show] if cols_to_show else df_models, 
@@ -1038,8 +1037,8 @@ def render_sidebar_base():
                                     use_container_width=True
                                 )
                                 
-                                # 5. (선택사항) 원본 JSON은 접어두기
-                                with st.expander("JSON 원본 보기 (디버깅용)"):
+                                # 5. [수정됨] Expander 대신 체크박스 사용
+                                if st.checkbox("JSON 원본 데이터 보기"):
                                     st.json(data)
                             else:
                                 st.warning("수신된 모델 리스트가 없습니다.")
