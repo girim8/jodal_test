@@ -998,26 +998,60 @@ def render_sidebar_base():
         if current_keys:
             st.sidebar.success(f"✅ Gemini 사용 가능 ({len(current_keys)}개 키 로드됨)")
 
-# [▼▼▼ Admin 디버깅용 Raw Data 출력 모드 ▼▼▼]
+# [▼▼▼ Admin: 모델 리스트 엑셀 다운로드 기능 추가 ▼▼▼]
             if st.session_state.get("role") == "admin":
-                with st.sidebar.expander("👮 [Admin] 모델 JSON 원본", expanded=True):
+                with st.sidebar.expander("👮 [Admin] 모델 리스트 관리", expanded=True):
                     try:
                         chk_key = current_keys[0]
                         chk_url = "https://generativelanguage.googleapis.com/v1beta/models"
-                        # timeout을 조금 넉넉히 10초로 설정
                         chk_res = requests.get(chk_url, params={"key": chk_key}, timeout=10)
                         
                         if chk_res.status_code == 200:
                             data = chk_res.json()
-                            # 가공 없이 JSON 그대로 출력 (여기서 모델명을 복사해서 써야 합니다)
-                            st.json(data) 
+                            model_list = data.get("models", [])
+                            
+                            if model_list:
+                                # 1. 보기 좋게 DataFrame으로 변환
+                                df_models = pd.DataFrame(model_list)
+                                
+                                # 2. 엑셀 파일 메모리에 생성
+                                excel_buf = BytesIO()
+                                df_models.to_excel(excel_buf, index=False, engine="openpyxl")
+                                excel_buf.seek(0)
+                                
+                                # 3. 다운로드 버튼 생성
+                                st.download_button(
+                                    label="📥 엑셀로 전체 다운로드",
+                                    data=excel_buf,
+                                    file_name=f"gemini_models_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True
+                                )
+                                
+                                # 4. 화면에는 '이름'과 '설명'만 깔끔하게 표로 보여주기
+                                st.caption("👇 모델 리스트 (name 컬럼을 복사해서 쓰세요)")
+                                # 필요한 컬럼만 추려서 표시 (없으면 전체 표시)
+                                cols_to_show = [c for c in ["name", "displayName", "inputTokenLimit"] if c in df_models.columns]
+                                st.dataframe(
+                                    df_models[cols_to_show] if cols_to_show else df_models, 
+                                    hide_index=True,
+                                    use_container_width=True
+                                )
+                                
+                                # 5. (선택사항) 원본 JSON은 접어두기
+                                with st.expander("JSON 원본 보기 (디버깅용)"):
+                                    st.json(data)
+                            else:
+                                st.warning("수신된 모델 리스트가 없습니다.")
                         else:
-                            st.error(f"상태코드: {chk_res.status_code}")
-                            st.write(chk_res.text)
+                            st.error(f"API 호출 실패 (Code: {chk_res.status_code})")
+                            st.caption(chk_res.text)
                             
                     except Exception as e:
-                        st.error(f"통신 에러: {str(e)}")
+                        st.error(f"오류 발생: {str(e)}")
             # [▲▲▲ 코드 끝 ▲▲▲]
+
+        
         else:
             st.sidebar.warning("⚠️ Gemini 키가 없습니다.")
 
