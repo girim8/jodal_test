@@ -992,6 +992,48 @@ def render_sidebar_base():
         else:
             st.sidebar.warning("⚠️ Gemini 키가 없습니다.")
 
+        # 현행 키호출명 체크
+
+        current_keys = _get_gemini_key_list()
+        if current_keys:
+            st.sidebar.success(f"✅ Gemini 사용 가능 ({len(current_keys)}개 키 로드됨)")
+
+            # [▼▼▼ 추가할 코드 시작 ▼▼▼]
+            # 관리자(admin)일 경우, 실제 API를 호출하여 사용 가능한 모델 리스트를 보여줍니다.
+            if st.session_state.get("role") == "admin":
+                with st.sidebar.expander("👮 [Admin] 가용 모델 리스트", expanded=True):
+                    try:
+                        # 첫 번째 키를 사용하여 모델 조회
+                        chk_key = current_keys[0]
+                        chk_url = "https://generativelanguage.googleapis.com/v1beta/models"
+                        chk_res = requests.get(chk_url, params={"key": chk_key}, timeout=5)
+                        
+                        if chk_res.status_code == 200:
+                            data = chk_res.json()
+                            models = data.get("models", [])
+                            # 'gemini'가 포함된 모델명만 필터링하여 출력
+                            model_names = [
+                                m["name"].replace("models/", "") 
+                                for m in models 
+                                if "gemini" in m["name"].lower()
+                            ]
+                            if model_names:
+                                st.markdown(
+                                    f"""<div style="font-size:11px; color:#333; line-height:1.4;">
+                                    {'<br>'.join(sorted(model_names, reverse=True))}
+                                    </div>""", 
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                st.warning("Gemini 모델 목록이 비어있습니다.")
+                        else:
+                            st.error(f"조회 실패: {chk_res.status_code}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            # [▲▲▲ 추가할 코드 끝 ▲▲▲]
+
+        else:
+            st.sidebar.warning("⚠️ Gemini 키가 없습니다.")
 
 def render_sidebar_filters(df: pd.DataFrame):
     st.sidebar.markdown("---")
