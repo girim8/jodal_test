@@ -44,7 +44,7 @@ import olefile
 # =============================
 # 전역 설정
 # =============================
-MODEL_PRIORITY = ["gemini-3.0-flash-preview", "gemini-2.0-flash-exp"]
+MODEL_PRIORITY = ["gemini-3-flash-preview", "gemini-2.0-flash", "gemini-pro-latest"]
 
 st.set_page_config(page_title="조달입찰 분석 시스템", layout="wide", initial_sidebar_state="expanded")
 st.markdown(
@@ -1704,7 +1704,7 @@ elif menu_val == "내고객 분석하기":
                     if st.button("⚡ 초신속 (10초 이내)", use_container_width=True):
                         run_analysis = True
                         use_ocr_flag = False
-                        target_models = ["gemini-2.0-flash-exp"]
+                        target_models = ["gemini-2.0-flash-lite"]
                         
                 # 2. 신속 
                 with col_btn2:
@@ -1718,7 +1718,7 @@ elif menu_val == "내고객 분석하기":
                     if st.button("👁️ OCR 상세분석 (30초 이상)", use_container_width=True):
                         run_analysis = True
                         use_ocr_flag = True
-                        target_models = ["gemini-3-pro-preview", "gemini-2.0-flash-exp"]
+                        target_models = ["gemini-3-pro-preview", "gemini-2.5-pro"]
                 
                 if run_analysis:
                     if not src_files:
@@ -1729,9 +1729,9 @@ elif menu_val == "내고객 분석하기":
                         if use_ocr_flag:
                             mode_label = "OCR 상세분석"
                         elif "2.0" in target_models[0]:
-                            mode_label = "초신속(Gemini 2.0)"
+                            mode_label = "초신속(gemini-2.0-flash-lite)"
                         else:
-                            mode_label = "신속(Gemini 3.0)"
+                            mode_label = "신속gemini-3-flash-preview)"
 
                         with st.spinner(f"Gemini가 보고서를 작성 중... ({mode_label})"):
                             combined_text, logs, _ = extract_text_combo_gemini_first(src_files, use_upstage=use_ocr_flag)
